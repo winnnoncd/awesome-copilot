@@ -1,8 +1,6 @@
-# CLAUDE.md — Awesome GitHub Copilot
+# CLAUDE.md
 
-This file provides guidance for AI assistants (Claude Code and similar) working in this repository. The authoritative human-facing documentation lives in [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
-
----
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -18,28 +16,6 @@ This file provides guidance for AI assistants (Claude Code and similar) working 
 | Plugins | `plugins/<name>/` | `.github/plugin/plugin.json` + `README.md` |
 
 The build system (Node.js) reads these files and generates the top-level `README.md` and `.github/plugin/marketplace.json`. CI enforces that both are up to date.
-
----
-
-## Repository Structure
-
-```
-awesome-copilot/
-├── agents/                  # *.agent.md — GitHub Copilot custom agent definitions
-├── prompts/                 # *.prompt.md — reusable task-specific prompts
-├── instructions/            # *.instructions.md — coding standards applied to file patterns
-├── skills/                  # folders: each skill is <name>/SKILL.md + optional assets
-├── hooks/                   # folders: each hook is <name>/README.md + hooks.json
-├── plugins/                 # folders: each plugin is <name>/.github/plugin/plugin.json + README.md
-├── docs/                    # README.<type>.md — generated docs per resource type
-├── eng/                     # Node.js build/automation scripts (.mjs)
-├── scripts/                 # Utility shell scripts (e.g., fix-line-endings.sh)
-├── cookbook/                # Practical copy-paste examples
-├── website/                 # Vite-based documentation website
-├── AGENTS.md                # Full project + workflow reference for AI agents
-├── CONTRIBUTING.md          # Contribution guidelines
-└── package.json             # npm scripts (the primary build interface)
-```
 
 ---
 
@@ -68,6 +44,10 @@ npm run skill:create -- --name <skill-name> --description "<description>"
 
 # Normalize line endings (CRLF → LF) — MUST run before every commit
 bash scripts/fix-line-endings.sh
+
+# Website development
+npm run website:dev    # dev server with live data generation
+npm run website:build  # full build including website
 ```
 
 **What `npm run build` does:**
@@ -82,7 +62,7 @@ bash scripts/fix-line-endings.sh
 2. **Run `bash scripts/fix-line-endings.sh` before every commit.** CI (`check-line-endings.yml`) rejects CRLF line endings.
 3. **All PRs must target the `staged` branch, not `main`.** CI (`check-pr-target.yml`) enforces this.
 4. **Description field values must be wrapped in single quotes** in all frontmatter.
-5. **File and folder names must be lowercase with hyphens** (e.g., `my-new-agent.agent.md`, not `MyNewAgent.agent.md`).
+5. **File and folder names must be lowercase with hyphens** (e.g., `my-new-agent.agent.md`).
 6. **Skill `name` frontmatter must exactly match the folder name** (lowercase, hyphens, max 64 chars).
 
 ---
@@ -117,7 +97,7 @@ tools: ['codebase', 'terminalCommand', 'edit/editFiles'] # recommended
 
 ```yaml
 ---
-agent: 'agent'                                           # required (agent | ask | Plan)
+agent: 'agent'                                           # required; one of: agent | ask | Plan
 description: 'Brief description of the prompt'          # required, single quotes
 name: 'Prompt Display Name'                              # recommended
 model: gpt-4.1                                           # strongly recommended
@@ -168,6 +148,8 @@ tags: ['logging', 'audit']       # optional; array of lowercase-hyphenated strin
 }
 ```
 
+Paths in `plugin.json` are relative to the **plugin's root folder** (`plugins/<name>/`), so `../../agents/` resolves to the top-level `agents/` directory. Plugin content is declarative — source files live in top-level directories and are materialized into plugins by CI. Do not duplicate source files inside the plugin folder.
+
 ---
 
 ## Workflow: Adding New Resources
@@ -176,8 +158,7 @@ tags: ['logging', 'audit']       # optional; array of lowercase-hyphenated strin
 
 1. Create the file in the appropriate directory with correct frontmatter.
 2. `npm run build` — updates README.
-3. `bash scripts/fix-line-endings.sh` — normalize line endings.
-4. Verify your resource appears in the relevant `docs/README.<type>.md`.
+3. `bash scripts/fix-line-endings.sh`
 
 ### Skill
 
@@ -187,7 +168,7 @@ tags: ['logging', 'audit']       # optional; array of lowercase-hyphenated strin
    - Keep each asset under 5 MB.
 4. `npm run skill:validate` — check structure.
 5. `npm run build` — update README.
-6. `bash scripts/fix-line-endings.sh`.
+6. `bash scripts/fix-line-endings.sh`
 
 ### Hook
 
@@ -196,17 +177,15 @@ tags: ['logging', 'audit']       # optional; array of lowercase-hyphenated strin
 3. Create `hooks.json` following the [GitHub Copilot hooks spec](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/use-hooks).
 4. Add any scripts and make them executable: `chmod +x script.sh`.
 5. `npm run build` — update README.
-6. `bash scripts/fix-line-endings.sh`.
+6. `bash scripts/fix-line-endings.sh`
 
 ### Plugin
 
 1. `npm run plugin:create -- --name <plugin-name>` — scaffolds the plugin directory.
 2. Edit `plugins/<name>/.github/plugin/plugin.json` with metadata and resource references.
-   - Resources are referenced as relative paths to existing top-level files.
-   - CI materializes them into the plugin — do not duplicate source files inside the plugin folder.
 3. `npm run plugin:validate` — check structure.
 4. `npm run build` — update README and marketplace.json.
-5. `bash scripts/fix-line-endings.sh`.
+5. `bash scripts/fix-line-endings.sh`
 
 ---
 
@@ -227,8 +206,6 @@ All of these run automatically on pull requests. Fix failures before merging.
 
 ## Pre-Commit Checklist
 
-Before committing any change:
-
 - [ ] `npm run build` completed without errors
 - [ ] `bash scripts/fix-line-endings.sh` was run
 - [ ] All new files have correct frontmatter with required fields
@@ -240,20 +217,14 @@ Before committing any change:
 
 ---
 
-## Tech Stack
+## Architecture: How the Build Works
 
-- **Build tooling**: Node.js 18+, npm; scripts are ES modules in `eng/*.mjs`
-- **Key dependencies**: `js-yaml`, `vfile`, `vfile-matter` (frontmatter parsing)
-- **Dev dependencies**: `all-contributors-cli`
-- **Website**: Vite-based app in `website/`
-- **MCP server**: Docker image `ghcr.io/microsoft/mcp-dotnet-samples/awesome-copilot:latest`
+The build system (`eng/*.mjs` ES modules, Node.js 18+) is the core of this repo:
 
----
+- **`eng/update-readme.mjs`** — Scans `agents/`, `prompts/`, `instructions/`, `skills/`, `hooks/` for resource files, parses frontmatter with `vfile-matter`, and regenerates the top-level `README.md` and each `docs/README.<type>.md`.
+- **`eng/generate-marketplace.mjs`** — Scans `plugins/`, reads each `.github/plugin/plugin.json`, and writes the consolidated `.github/plugin/marketplace.json` consumed by the Copilot CLI marketplace.
+- **`eng/validate-plugins.mjs`** / **`eng/validate-skills.mjs`** — Enforce structural rules (name/folder match, description length, valid file references) and exit non-zero on failure, which blocks CI.
+- **`eng/create-plugin.mjs`** / **`eng/create-skill.mjs`** — Interactive scaffolders invoked via `npm run plugin:create` and `npm run skill:create`.
+- **`scripts/fix-line-endings.sh`** — Runs `sed` over all `.md` files to convert CRLF → LF; required because CI hard-fails on Windows-style line endings.
 
-## Further Reading
-
-- [AGENTS.md](AGENTS.md) — complete project overview, full field-by-field checklists for each resource type
-- [CONTRIBUTING.md](CONTRIBUTING.md) — contribution guidelines and code of conduct link
-- [.github/copilot-instructions.md](.github/copilot-instructions.md) — code review instructions (for agents performing reviews)
-- [docs/](docs/) — generated documentation per resource type
-- [cookbook/README.md](cookbook/README.md) — practical examples
+The website (`website/`) is a separate Vite app that consumes JSON generated by `eng/generate-website-data.mjs`.
